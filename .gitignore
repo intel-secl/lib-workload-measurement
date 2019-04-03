@@ -1,0 +1,14 @@
+bin/
+build/
+lib/
+msvc/wml.opensdf
+msvc/wml.sdf
+msvc/wml.v12.suo
+msvc/measure/measure.vcxproj.user
+msvc/measure/x64/
+msvc/wml/wml.vcxproj.user
+msvc/wml/x64/
+packages/wml-windows/target/
+packages/wml/target/
+*.iml
+.idea
