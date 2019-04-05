@@ -64,9 +64,11 @@
 	</target>
 	
 	<target name="build-wml" depends="init" if="isUnix">
+		<!-- permissions -->
+		<chmod file="scripts/wml_build.sh" perm="700"/>
 		<!-- run the build script -->
 		<exec executable="/bin/bash" failonerror="true">
-			<arg value="-c"/>
+					<arg value="-c"/>
 			<arg value="./scripts/wml_build.sh"/>
 		</exec>
 	</target>
