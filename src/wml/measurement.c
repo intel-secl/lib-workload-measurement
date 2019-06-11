@@ -32,7 +32,7 @@ extern BCRYPT_ALG_HANDLE	handle_Alg;
 #endif
 
 #define manifest_tag "Manifest"
-#define cumulative_hash_size 32
+#define cumulative_hash_size 48
 
 /*These global variables are required for calculating the cumulative hash */
 extern int cumulative_hash_len;

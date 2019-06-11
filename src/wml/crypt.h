@@ -16,7 +16,7 @@
 #include <openssl/evp.h>
 #endif
 
-#define MAX_HASH_LEN 65
+#define MAX_HASH_LEN 97
 
 int validateHashAlgorithm(char *hash_type);
 int initializeHashAlgorithm(char *hash_type);

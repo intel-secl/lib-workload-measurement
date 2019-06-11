@@ -23,7 +23,7 @@ int cumulative_hash_len = 0;
 unsigned char cumulative_hash[MAX_HASH_LEN] = {'\0'};
 
 static const char *hash_algorithms[] = {
-	"SHA256"
+	"SHA384"
 };
 
 int validateHashAlgorithm(char *hash_type) {
