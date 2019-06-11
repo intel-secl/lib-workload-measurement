@@ -8,8 +8,6 @@
 #ifndef UTIL_H_
 #define UTIL_H_
 
-#include "common.h"
-
 char *toUpperCase(char *str);
 void tagEntry(char* line);
 char *getTagValue(char *line, char *key);

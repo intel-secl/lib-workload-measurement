@@ -8,10 +8,6 @@
 #include "common.h"
 #include "char_converter.h"
 
-#ifdef _WIN32
-#define uint8_t __int8
-#endif
-
 //map of asci char to hex values
 const uint8_t char_hashmap[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // ........
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // ........
@@ -68,14 +64,11 @@ int hex2bin(char* hex_str, int hex_str_len, unsigned char* byte_buffer,
 		return -3;
 	if (hex_str_len % 2 != 0)
 		return -4;
+
 	int index;
 	uint8_t msb_half_idx;
 	uint8_t lsb_half_idx;
-#ifdef _WIN32
-	ZeroMemory(byte_buffer, byte_buffer_len);
-#elif __linux__
 	bzero(byte_buffer, byte_buffer_len);
-#endif
 	for (index = 0; index / 2 < byte_buffer_len - 1 && index < hex_str_len;
 			index += 2) {
 		char msb_hex_char = hex_str[index];
@@ -115,11 +108,8 @@ int bin2hex(unsigned char * byte_buffer, int byte_buffer_len, char * hex_str,
 		return -1;
 	if (byte_buffer_len * 2 + 1 > hex_str_len)
 		return -3;
-#ifdef _WIN32
-	ZeroMemory(hex_str, hex_str_len);
-#elif __linux__
+
 	bzero(hex_str, hex_str_len);
-#endif
 	const char bin_char_map[] = "0123456789abcdef";
 	int index;
 	for (index = 0; index < byte_buffer_len; index++) {

@@ -6,19 +6,13 @@
  */
 
 #include <fcntl.h>
-#ifdef __linux__
 #include <stdlib.h>
-#endif
 
+#include "common.h"
 #include "logging.h"
 #include "log.h"
 
-#ifdef _WIN32
-#define default_log_file "C:/Logs/wml/measure.log"
-#elif __linux__
 #define default_log_file "/var/log/wml/measure.log"
-#endif
-
 #define default_log_level LOG_INFO
 
 static const char *level_names[] = {
@@ -34,8 +28,6 @@ int str2enum (const char *str)
 	return -1;
 }
 
-#define BUFSIZE 4096
-
 FILE* configure_logger() {
 
 	int fd = -1;
@@ -45,24 +37,13 @@ FILE* configure_logger() {
 
 	const char* lf = getenv("WML_LOG_FILE");
 	if (lf != NULL) {
-#ifdef _WIN32
-		char *buffer = malloc(BUFSIZE);
-		char** lppPart = NULL;
-		if (GetFullPathName(lf, BUFSIZE, buffer, lppPart)) {
-			log_file = buffer;
-		}
-#elif __linux__
 		log_file = realpath(lf, NULL);
-#endif
 		if (log_file == NULL) {
 			printf("Invalid log file specified\n");
 			return NULL;
 		}
-#ifdef _WIN32
-		fd = open(log_file, O_CREAT | O_WRONLY | O_APPEND, S_IREAD | S_IWRITE);
-#elif __linux__
+
 		fd = open(log_file, O_CREAT | O_WRONLY | O_APPEND, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-#endif
 		if (fd == -1) {
 			printf("Unable to get file descriptor for log file\n");
 			free(log_file);
@@ -98,6 +79,5 @@ FILE* configure_logger() {
 	log_set_fp(fp);
 	log_set_level(log_level);
 	log_set_quiet(1);
-	
 	return fp;
 }

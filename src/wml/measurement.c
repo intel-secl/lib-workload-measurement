@@ -12,27 +12,15 @@ Hard requirements: Manifest should be named manifest.xml - Parameters should be 
 Keywords in the Policy should match with those in this code : DigestAlg, File Path, Dir, sha1 and sha256
 */
 
-#ifdef _WIN32
-#include <io.h>
-#endif
-
+#include "common.h"
 #include "logging.h"
 #include "crypt.h"
 #include "util.h"
-#include "xml_formatter.h"
 #include "char_converter.h"
+#include "xml_formatter.h"
 #include "measurement.h"
 
-#ifdef _WIN32
-#define measurement_file "C:/Temp/measurement.xml"
-//For CNG crypto APIs using bcrypt
-extern BCRYPT_ALG_HANDLE	handle_Alg;
-#elif __linux__
 #define measurement_file "/tmp/measurement.xml"
-#endif
-
-#define manifest_tag "Manifest"
-#define cumulative_hash_size 48
 
 /*These global variables are required for calculating the cumulative hash */
 extern int cumulative_hash_len;
@@ -120,93 +108,7 @@ void calculateFileHash(char *line, FILE *fq, char *hash_type, int version) {
 	}
 }
 
-void calculateDirHashV1(char *line, FILE *fq, char *hashType) {
-
-#ifdef __linux__
-    int slen = 0;
-    size_t len = 0;
-    size_t dhash_max = 128;
-    char *dhash = NULL;
-    char *temp_ptr = NULL;
-    char *next_token = NULL;
-    char dir_path[NODE_LEN] = {'\0'};
-	char recursive_cmd[32] = {'\0'};
-    char hash_algo[16] = {'\0'};
-    char recursive[16] = {'\0'};
-    char exclude[128] = { '\0'};
-    char include[128] = {'\0'};
-    char Dir_Str[256] = {'\0'};
-    char mDpath[256] = {'\0'};
-    FILE *dir_file;
-
-    temp_ptr = strstr(line, "Path=");
-    if (temp_ptr != NULL ) {
-	tagEntry(temp_ptr);
-	strcpy_s(dir_path,sizeof(dir_path),node_value);
-    }
-    log_info("Directory : %s",node_value);
-
-    temp_ptr=NULL;
-    temp_ptr=strstr(line, "Recursive=");
-    if ( temp_ptr != NULL ) {
-		tagEntry(temp_ptr);
-		strcpy_s(recursive,sizeof(recursive),node_value);
-		log_info("Recursive : %s", node_value);
-		if ( strcmp(recursive, "false") == 0) {
-			snprintf(recursive_cmd, sizeof(recursive_cmd), "-maxdepth 1");
-		}
-    }
-
-    temp_ptr = NULL;
-    temp_ptr = strstr(line, "Include=");
-    if (temp_ptr != NULL) {
-		tagEntry(temp_ptr);
-		strcpy_s(include,sizeof(include),node_value);
-		log_info("Include type : %s",node_value);
-    }
-
-    temp_ptr = NULL;
-    temp_ptr = strstr(line,"Exclude=");
-    if ( temp_ptr != NULL ) {
-		tagEntry(temp_ptr);
-		strcpy_s(exclude,sizeof(exclude),node_value);
-		log_info("Exclude type : %s",node_value);
-    }
-
-    strcpy_s(mDpath,sizeof(mDpath),fs_mount_path);
-    strcat_s(mDpath,sizeof(mDpath),dir_path);//path of dir in the VM
-
-    //to remove mount path from the find command output and directory path and +1 is to remove the additional / after directory
-    slen = strnlen_s(mDpath,sizeof(mDpath)) + 1; 
-    snprintf(hash_algo,sizeof(hash_algo),"%ssum",hashType);
-
-    if(strcmp(include,"") != 0 && strcmp(exclude,"") != 0 )
-        snprintf(Dir_Str, sizeof(Dir_Str), "find \"%s\" %s ! -type d | sed -r 's/.{%d}//' | grep -E  \"%s\" | grep -vE \"%s\" | %s",mDpath, recursive_cmd, slen, include, exclude, hash_algo);
-    else if(strcmp(include,"") != 0)
-        snprintf(Dir_Str, sizeof(Dir_Str), "find \"%s\" %s ! -type d | sed -r 's/.{%d}//' | grep -E  \"%s\" | %s",mDpath, recursive_cmd, slen, include, hash_algo);
-    else if(strcmp(exclude,"") != 0)
-        snprintf(Dir_Str, sizeof(Dir_Str), "find \"%s\" %s ! -type d | sed -r 's/.{%d}//' | grep -vE \"%s\" | %s",mDpath, recursive_cmd, slen, exclude, hash_algo);
-    else
-        snprintf(Dir_Str, sizeof(Dir_Str), "find \"%s\" %s ! -type d | sed -r 's/.{%d}//' | %s",mDpath, recursive_cmd, slen, hash_algo);
-
-    log_info("********mDpath is ---------- %s and command is %s",mDpath,Dir_Str);
-
-    dir_file = popen(Dir_Str,"r");
-    if (dir_file != NULL ) {
-		getline(&dhash, &len, dir_file);
-		strtok_s(dhash,&dhash_max," ",&next_token);
-		pclose(dir_file);
-    }
-    else {
-		dhash = "\0";
-    }
-    fprintf(fq,"<Dir Path=\"%s\">",dir_path);
-    fprintf(fq,"%s</Dir>\n",dhash);
-    generateCumulativeHash(dhash, hashType);
-#endif
-}
-
-void calculateDirHashV2(char *line, FILE *fq, char *hash_type) {
+void calculateDirHash(char *line, FILE *fq, char *hash_type) {
 
     size_t len = 32768;
     int is_wildcard = 0;
@@ -320,11 +222,7 @@ int generateMeasurementLogs(FILE *fp, char *mountPath) {
 		log_error("Can not open Measurement file: %s to write the measurements", measurement_file);
 		return 0;
 	}
-/*#ifdef _WIN32
-	chmod(measurement_file, S_IREAD | S_IWRITE);
-#elif __linux__
-	chmod(measurement_file, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-#endif*/
+ 
 	line = (char *)malloc(sizeof(char) * len);
 	if (line == NULL) {
 		log_error("Failed to allocate memory for reading manifest");
@@ -383,7 +281,7 @@ int generateMeasurementLogs(FILE *fp, char *mountPath) {
 
 		//Directory Hashes
 		if(strstr(line,"<Dir ") != NULL && digest_check) {
-			calculateDirHashV2(line, fq, hashType);
+			calculateDirHash(line, fq, hashType);
 		}//Dir hash ends
 
 	}//While ends
@@ -394,9 +292,6 @@ int generateMeasurementLogs(FILE *fp, char *mountPath) {
 		goto final;
 	}
 
-#ifdef _WIN32
-	BCryptCloseAlgorithmProvider(handle_Alg, 0);
-#endif
 	bin2hex(cumulative_hash, cumulative_hash_len, cumulativeHash, sizeof(cumulativeHash));
 	log_info("Cumulative Hash : %s", cumulativeHash);
 	fprintf(fq, "<CumulativeHash>%s</CumulativeHash>", cumulativeHash);

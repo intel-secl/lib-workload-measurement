@@ -8,14 +8,6 @@
 #ifndef CRYPT_H_
 #define CRYPT_H_
 
-#include "common.h"
-
-#ifdef _WIN32
-#include <bcrypt.h>
-#elif __linux__
-#include <openssl/evp.h>
-#endif
-
 #define MAX_HASH_LEN 97
 
 int validateHashAlgorithm(char *hash_type);
