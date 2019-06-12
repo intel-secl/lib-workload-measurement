@@ -15,22 +15,19 @@
 	<target name="init">
 		<condition property="cmd.maven" value="mvn.cmd">
 			<os family="windows"/>
-        </condition>
+		</condition>
 		<condition property="cmd.maven" value="mvn">
 			<os family="unix"/>
 		</condition>
 		<condition property="isWindows" value="true">
-				<os family="windows" />
+			<os family="windows" />
 		</condition>             
 		<condition property="isUnix" value="true">
-				<os family="unix" />
+			<os family="unix" />
 		</condition>
 	</target>
 
 	<target name="ready" depends="init">
-		<!-- the root pom -->
-		<!-- the root pom -->
-		
 		<!-- permissions -->
 		<chmod file="scripts/wml_build.sh" perm="700"/>
 		
@@ -42,13 +39,6 @@
 	</target>
 	
 	<target name="clean" depends="init">
-		<!-- the root pom and all projects -->
-		<exec executable="${cmd.maven}" resultproperty="mavenExitClean">
-			<arg value="clean"/>
-		</exec>
-		<fail message="Cannot clean build files" status="${mavenExitClean}">
-			<condition><not><equals arg1="${mavenExitClean}" arg2="0"/></not></condition>
-		</fail>
 		<!-- the packages -->
 		<exec executable="${cmd.maven}" dir="packages" resultproperty="mavenExitCleanPackages">
 			<arg value="clean"/>
@@ -59,8 +49,7 @@
 		
 		<delete dir="bin"/>
 		<delete dir="lib"/>
-        <delete dir="msvc/wml/x64"/>
-		<delete dir="msvc/measure/x64"/>
+		<delete dir="build"/>
 	</target>
 	
 	<target name="build-wml" depends="init" if="isUnix">
@@ -68,23 +57,12 @@
 		<chmod file="scripts/wml_build.sh" perm="700"/>
 		<!-- run the build script -->
 		<exec executable="/bin/bash" failonerror="true">
-					<arg value="-c"/>
+			<arg value="-c"/>
 			<arg value="./scripts/wml_build.sh"/>
 		</exec>
 	</target>
 	
-	<target name="build-wml-windows" depends="init" if="isWindows">
-		<!-- the root pom and all projects except packages -->
-		<exec executable="${cmd.maven}" resultproperty="mavenExitInstall">
-			<arg value="-DskipTests=true"/>
-			<arg value="install"/>
-		</exec>
-		<fail message="Cannot build project" status="${mavenExitInstall}">
-			<condition><not><equals arg1="${mavenExitInstall}" arg2="0"/></not></condition>
-		</fail>
-	</target>
-	
-	<target name="build" depends="build-wml,build-wml-windows"></target>
+	<target name="build" depends="build-wml"></target>
 
 	<target name="packages" depends="init">
 		<!-- the packages -->
@@ -103,9 +81,9 @@
         <exec executable="klocwork.sh"/>
     </target>
 
-	<target name="banned" depends="init,ready">
-		<exec executable="banned.sh"/>		      
-	</target>
+    <target name="banned" depends="init,ready">
+	<exec executable="banned.sh"/>		      
+    </target>
 
     <target name="build-with-scans">
         <parallel>
@@ -115,9 +93,9 @@
             <exec executable="ant">
                 <arg value="klocwork"/>
             </exec>
-			<exec executable="ant">
-        	    <arg value="banned"/>
-	        </exec>
+            <exec executable="ant">
+                <arg value="banned"/>
+            </exec>
         </parallel>
     </target>
 
