@@ -6,7 +6,6 @@
  */
 
 #include <fcntl.h>
-#include <stdlib.h>
 
 #include "common.h"
 #include "logging.h"

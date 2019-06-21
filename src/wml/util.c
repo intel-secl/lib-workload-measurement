@@ -6,6 +6,7 @@
  */
 
 #include <unistd.h>
+#include <regex.h>
 
 #include "common.h"
 #include "crypt.h"
@@ -17,7 +18,7 @@
 *
 * Returns the actual value for the symbolic link provided as input
 */
-int getSymLinkValue(char *path, int version) {
+int getSymLinkValue(char *path) {
 	char symlinkpath[512];
     char sympathroot[512];
     struct stat p_statbuf;
@@ -48,20 +49,29 @@ int getSymLinkValue(char *path, int version) {
             snprintf(sympathroot, sizeof sympathroot, "%s%s%s", path, "/", symlinkpath);
             log_debug("Relative symlink path %s points to %s", symlinkpath, sympathroot);
         }
-
-        strcpy_s(path, MAX_LEN, sympathroot);
-        if(version == 2) {
-            strcpy_s(path, MAX_LEN, symlinkpath);
-		}
-		else {
-			return getSymLinkValue(path, version);
-		}
+        strcpy_s(path, MAX_LEN, symlinkpath);
     }
 	else {
 		log_error("Not a valid Symlink - %s", path);
 		return -1;
 	}
     return 0;
+}
+
+int isValidRegex(const char *regex) {
+
+	regex_t preg;
+	int errcode = regcomp(&preg, regex, REG_EXTENDED);
+	if (errcode == 0) {
+		regfree(&preg);
+		return 1;
+	}
+	else {
+		char errmsg[80];
+		regerror(errcode, NULL, errmsg, 80);
+		log_debug("Failed to validate regex - %s", errmsg);
+		return 0;
+	}
 }
 
 char *toUpperCase(char *str) {
@@ -304,7 +314,7 @@ void calculateDirHashUtil(char *dir_path, char *include, char *exclude, FILE *fq
 	}
 }
 
-void calculateFileHashUtil(char *file_path, FILE *fq, char *hash_type, int version) {
+void calculateFileHashUtil(char *file_path, FILE *fq, char *hash_type) {
 
 	int retval = -1;
 	char file_name_buff[1024] = {'\0'};
@@ -338,7 +348,7 @@ void calculateFileHashUtil(char *file_path, FILE *fq, char *hash_type, int versi
     }
 }
 
-void calculateSymlinkHashUtil(char *sym_path, FILE *fq, char *hash_type, int version) {
+void calculateSymlinkHashUtil(char *sym_path, FILE *fq, char *hash_type) {
 
 	int retval = -1;
 	char hash_str[MAX_LEN] = {'\0'};
@@ -347,7 +357,7 @@ void calculateSymlinkHashUtil(char *sym_path, FILE *fq, char *hash_type, int ver
 	
 	snprintf(file_name_buff, sizeof(file_name_buff), "%s%s", fs_mount_path, sym_path);
     log_debug("symlink path : %s", file_name_buff);
-    retval = getSymLinkValue(file_name_buff, version);
+    retval = getSymLinkValue(file_name_buff);
     if( retval == 0 ) {
         log_info("Target file path for symlink %s is %s",sym_path,file_name_buff);
 

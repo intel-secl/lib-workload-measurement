@@ -15,7 +15,7 @@
 const EVP_MD	*md;
 
 /*These global variables are required for calculating the cumulative hash */
-int cumulative_hash_len = 0;
+unsigned int cumulative_hash_len = 0;
 unsigned char cumulative_hash[MAX_HASH_LEN] = {'\0'};
 
 static const char *hash_algorithms[] = {

@@ -23,17 +23,18 @@ Keywords in the Policy should match with those in this code : DigestAlg, File Pa
 #define measurement_file "/tmp/measurement.xml"
 
 /*These global variables are required for calculating the cumulative hash */
-extern int cumulative_hash_len;
+extern unsigned int cumulative_hash_len;
 extern unsigned char cumulative_hash[MAX_HASH_LEN];
 
  /*
- * calculate:
- * @path : path of the file
- * @output : character array for storing the resulted file hash
+ * calculateSymlinkHash:
+ * @line : path of the symlink
+ * @fq : measurement_file pointer
+ * @hash_type : hash algorithm
  *
- * Calculate hash of file
+ * Calculate hash of symlink
  */
-void calculateSymlinkHash(char *line, FILE *fq, char *hash_type, int version) {
+void calculateSymlinkHash(char *line, FILE *fq, char *hash_type) {
 
     size_t len = 32768;
 	char sym_path[NODE_LEN] = {'\0'};
@@ -44,10 +45,17 @@ void calculateSymlinkHash(char *line, FILE *fq, char *hash_type, int version) {
 		log_info("Symlink : %s",node_value);
 	}
 
-	if (strcmp(sym_path, "") == 0)
+	if (strcmp(sym_path, "") == 0) {
+		log_warn("Path is not provided. Skipping measurement...");
 		return;
+	}
 
-	if ( strstr(line,"SearchType=") ) {
+	if (strstr(line, "SearchType=")) {
+		if (!isValidRegex(sym_path)) {
+			log_warn("Not a valid regex. Skipping measurement...");
+			return;
+		}
+
 		fd = getMatchingEntries(sym_path, fd, 'l');
 		if (fd != NULL) {
 			while (fgets(line, len, fd) != NULL) {
@@ -57,38 +65,46 @@ void calculateSymlinkHash(char *line, FILE *fq, char *hash_type, int version) {
 					break;
 				}
 				strcpy_s(sym_path,NODE_LEN,tokenizeString(line, "\n"));
-				calculateSymlinkHashUtil(sym_path, fq, hash_type, version);
+				calculateSymlinkHashUtil(sym_path, fq, hash_type);
 			}
 			fclose(fd);
 		}
 	}
 	else {
-		calculateSymlinkHashUtil(sym_path, fq, hash_type, version);
+		calculateSymlinkHashUtil(sym_path, fq, hash_type);
 	}
 }
 
  /*
- * calculate:
- * @path : path of the file
- * @output : character array for storing the resulted file hash
+ * calculateFileHash:
+ * @line : path of the file
+ * @fq : measurement_file pointer
+ * @hash_type : hash algorithm
  *
  * Calculate hash of file
  */
-void calculateFileHash(char *line, FILE *fq, char *hash_type, int version) {
+void calculateFileHash(char *line, FILE *fq, char *hash_type) {
 
     size_t len = 32768;
     char file_path[NODE_LEN] = {'\0'};
     FILE *fd = NULL;
 
-	if ( getTagValue(line, "Path=") ) {
+	if (getTagValue(line, "Path=")) {
 		strcpy_s(file_path,sizeof(file_path),node_value);
 		log_info("File : %s",node_value);
 	}
 	
-	if (strcmp(file_path, "") == 0)
+	if (strcmp(file_path, "") == 0) {
+		log_warn("Path is not provided. Skipping measurement...");
 		return;
+	}
 
-	if ( strstr(line,"SearchType=") ) {
+	if (strstr(line, "SearchType=")) {
+		if (!isValidRegex(file_path)) {
+			log_warn("Not a valid regex. Skipping measurement...");
+			return;
+		}
+
 		fd = getMatchingEntries(file_path, fd, 'f');
 		if (fd != NULL) {
 			while (fgets(line, len, fd) != NULL) {
@@ -98,16 +114,24 @@ void calculateFileHash(char *line, FILE *fq, char *hash_type, int version) {
 					break;
 				}
 				strcpy_s(file_path,NODE_LEN,tokenizeString(line, "\n"));
-				calculateFileHashUtil(file_path, fq, hash_type, version);
+				calculateFileHashUtil(file_path, fq, hash_type);
 			}
 			fclose(fd);
 		}
 	}
 	else {
-		calculateFileHashUtil(file_path, fq, hash_type, version);
+		calculateFileHashUtil(file_path, fq, hash_type);
 	}
 }
 
+ /*
+ * calculateDirHash:
+ * @line : path of the dir
+ * @fq : measurement_file pointer
+ * @hash_type : hash algorithm
+ *
+ * Calculate hash of dir
+ */
 void calculateDirHash(char *line, FILE *fq, char *hash_type) {
 
     size_t len = 32768;
@@ -123,8 +147,10 @@ void calculateDirHash(char *line, FILE *fq, char *hash_type) {
 		log_info("Directory : %s",node_value);
 	}
 	
-	if (strcmp(dir_path, "") == 0)
+	if (strcmp(dir_path, "") == 0) {
+		log_warn("Path is not provided. Skipping measurement...");
 		return;
+	}
 
 	if (getTagValue(line, "FilterType=")) {
 		strcpy_s(filter_type,sizeof(filter_type),node_value);
@@ -137,24 +163,41 @@ void calculateDirHash(char *line, FILE *fq, char *hash_type) {
 	if (getTagValue(line, "Include=")) {
 		strcpy_s(include,sizeof(include),node_value);
 		log_info("Include : %s",node_value);
-		if(is_wildcard == 1 && strcmp(include,"") != 0) {
-			convertWildcardToRegex(include);
-			strcpy_s(include,sizeof(include),node_value);
-			log_info("Include type in regex_format : %s",node_value);
+		if (strcmp(include, "") != 0) {
+			if (is_wildcard == 1) {
+				convertWildcardToRegex(include);
+				strcpy_s(include,sizeof(include),node_value);
+				log_info("Include type in regex_format : %s",node_value);
+			}
+			if (!isValidRegex(include)) {
+				log_warn("Not a valid regex. Skipping measurement...");
+				return;
+			}
 		}
 	}
 
     if (getTagValue(line, "Exclude=")) {
 		strcpy_s(exclude,sizeof(exclude),node_value);
 		log_info("Exclude : %s",node_value);
-		if(is_wildcard == 1 && strcmp(exclude,"") != 0) {
-			convertWildcardToRegex(exclude);
-			strcpy_s(exclude,sizeof(exclude),node_value);
-			log_info("Exclude type in regex_format : %s",node_value);
+		if (strcmp(exclude, "") != 0) {
+			if (is_wildcard == 1) {
+				convertWildcardToRegex(exclude);
+				strcpy_s(exclude,sizeof(exclude),node_value);
+				log_info("Exclude type in regex_format : %s",node_value);
+			}
+			if (!isValidRegex(exclude)) {
+				log_warn("Not a valid regex. Skipping measurement...");
+				return;
+			}
 		}
 	}
 
-	if (strstr(line,"SearchType=")) {
+	if (strstr(line, "SearchType=")) {
+		if (!isValidRegex(dir_path)) {
+			log_warn("Not a valid regex. Skipping measurement...");
+			return;
+		}
+
 		fd = getMatchingEntries(dir_path, fd, 'd');
 		if (fd != NULL) {
 			while (fgets(line, len, fd) != NULL) {
@@ -182,7 +225,7 @@ Dir Path  **** Hard Dependency
 DigestAlg **** Hard Dependency
 Include **** Hard Dependency
 Exclude **** Hard Dependency
-Recursive **** Hard Dependency
+Symlink Path **** Hard Dependency
 and generates appropriate logs.
 
 Maybe we can have a to_upper/lower kinda function here that can take care of format issues.(Not covered in the Lite version)
@@ -199,8 +242,7 @@ is passed to calculate and the hash is added against log the dir in question
 int generateMeasurementLogs(FILE *fp, char *mountPath) {
 
 	int result = 1;
-	int version = 2;
-    size_t len = 32768;
+	size_t len = 32768;
 	int digest_check = 0;
     char *line = NULL;
     char *temp_ptr = NULL;
@@ -217,7 +259,7 @@ int generateMeasurementLogs(FILE *fp, char *mountPath) {
 	}*/
 
 	//fq = fdopen(fd, "w");
-	fq = fopen(measurement_file,"w");
+	fq = fopen(measurement_file, "w");
 	if (fq == NULL) {
 		log_error("Can not open Measurement file: %s to write the measurements", measurement_file);
 		return 0;
@@ -231,7 +273,7 @@ int generateMeasurementLogs(FILE *fp, char *mountPath) {
 	}
 	//Read Manifest to get list of files to hash
 	while (fgets(line, len, fp) != NULL) {
-		log_info("Line Read : %s",line);
+		log_info("Line Read : %s", line);
 		if(feof(fp)) {
 			log_debug("End of file found");
 		    break;
@@ -271,12 +313,12 @@ int generateMeasurementLogs(FILE *fp, char *mountPath) {
 
 		//File Hashes
 		if(strstr(line,"<File Path=") != NULL && digest_check) {
-		    calculateFileHash(line, fq, hashType, version);
+		    calculateFileHash(line, fq, hashType);
 		}
 
 		//Symlink Hashes
 		if(strstr(line,"<Symlink Path=") != NULL && digest_check) {
-		    calculateSymlinkHash(line, fq, hashType, version);
+		    calculateSymlinkHash(line, fq, hashType);
 		}
 
 		//Directory Hashes
