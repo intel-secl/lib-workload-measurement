@@ -1,4 +1,9 @@
 /*
+ * Copyright (C) 2019 Intel Corporation
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
+/*
  * crypt.c
  *
  *  Created on: 28-May-2018

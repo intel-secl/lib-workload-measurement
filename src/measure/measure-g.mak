@@ -1,3 +1,8 @@
+# /*
+# Copyright (C) 2019 Intel Corporation
+# SPDX-License-Identifier: BSD-3-Clause
+# */
+
 # the compiler: gcc for C program
 CC = gcc
 

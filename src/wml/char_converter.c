@@ -1,8 +1,13 @@
 /*
+ * Copyright (C) 2019 Intel Corporation
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
+/*
  * char_converter.c
  *
- *  Created on: 24-Dec-2015
- *      Author: vijay prakash
+ *  Created on: 24-May-2018
+ *      Author: Arvind Rawat
  */
 
 #include "common.h"

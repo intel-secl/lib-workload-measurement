@@ -1,4 +1,9 @@
 /*
+ * Copyright (C) 2019 Intel Corporation
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
+/*
  * measurement.c
  *
  *  Created on: 28-May-2018
@@ -251,11 +256,11 @@ int generateMeasurementLogs(FILE *fp, char *mountPath) {
     FILE *fq;
     
 	strcpy_s(fs_mount_path,sizeof(fs_mount_path),mountPath);
-	
+
 	/*int fd = open(measurement_file, O_CREAT | O_EXCL | O_WRONLY);
 	if (fd == -1) {
-		printf("Unable to get file descriptor for log file\n");
-		return 0;
+	        printf("Unable to get file descriptor for log file\n");
+	        return 0;
 	}*/
 
 	//fq = fdopen(fd, "w");

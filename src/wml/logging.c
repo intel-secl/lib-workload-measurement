@@ -1,4 +1,9 @@
 /*
+ * Copyright (C) 2019 Intel Corporation
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
+/*
  * logging.c
  *
  *  Created on: 14-June-2018
