@@ -50,7 +50,7 @@ int initializeHashAlgorithm(char *hash_type) {
 }
 
 /*This function keeps track of the cumulative hash and stores it in a global variable (which is later written to a file) */
-void generateCumulativeHash(char *hash, char *hash_type) {
+void generateCumulativeHash(char *hash) {
 
     log_debug("Incoming Hash : %s", hash);
 	char ob[MAX_HASH_LEN]= {'\0'};
@@ -81,7 +81,7 @@ void generateCumulativeHash(char *hash, char *hash_type) {
 	log_debug("Cumulative Hash after : %s", ob);
 }
 
-void generateFileHash(char *output, FILE *file, char *hash_type) {
+void generateFileHash(char *output, FILE *file) {
 
 	int bytesRead = 0;
 	const int bufSize = 65000;
@@ -106,11 +106,11 @@ void generateFileHash(char *output, FILE *file, char *hash_type) {
 	EVP_MD_CTX_destroy(mdctx);
 
 	bin2hex(hash_value, cumulative_hash_len, output, MAX_HASH_LEN);
-	generateCumulativeHash(output, hash_type);
+	generateCumulativeHash(output);
 	free(buffer);
 }
 
-void generateStrHash(char *output, char *str, char *hash_type) {
+void generateStrHash(char *output, char *str) {
 
 	unsigned char hash_value[MAX_HASH_LEN];
 	EVP_MD_CTX *mdctx;
@@ -123,5 +123,5 @@ void generateStrHash(char *output, char *str, char *hash_type) {
 	EVP_MD_CTX_destroy(mdctx);
 
 	bin2hex(hash_value, cumulative_hash_len, output, MAX_HASH_LEN);
-	generateCumulativeHash(output, hash_type);
+	generateCumulativeHash(output);
 }

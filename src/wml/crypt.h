@@ -17,8 +17,8 @@
 
 int validateHashAlgorithm(char *hash_type);
 int initializeHashAlgorithm(char *hash_type);
-void generateCumulativeHash(char *hash, char *hash_type);
-void generateFileHash(char *output, FILE *file, char *hash_type);
-void generateStrHash(char *output, char *str, char *hash_type);
+void generateCumulativeHash(char *hash);
+void generateFileHash(char *output, FILE *file);
+void generateStrHash(char *output, char *str);
 
 #endif /* CRYPT_H_ */

@@ -10,8 +10,8 @@
  *      Author: Arvind Rawat
  */
 
+#include <dirent.h>
 #include <unistd.h>
-#include <regex.h>
 
 #include "common.h"
 #include "crypt.h"
@@ -61,22 +61,6 @@ int getSymLinkValue(char *path) {
 		return -1;
 	}
     return 0;
-}
-
-int isValidRegex(const char *regex) {
-
-	regex_t preg;
-	int errcode = regcomp(&preg, regex, REG_EXTENDED);
-	if (errcode == 0) {
-		regfree(&preg);
-		return 1;
-	}
-	else {
-		char errmsg[80];
-		regerror(errcode, NULL, errmsg, 80);
-		log_debug("Failed to validate regex - %s", errmsg);
-		return 0;
-	}
 }
 
 char *toUpperCase(char *str) {
@@ -250,41 +234,147 @@ char *tokenizeString(char *line, char *delim) {
 	return dhash;
 }
 
-FILE *getMatchingEntries(char *line, FILE *fd, char file_type) {
-	
-	int slen = 0;
+int walkDirRecurse(const char *dir_path, const char *include, const char *exclude, regex_t *reginc, regex_t *regexc, FILE *fd, int spec) {
+
+    DIR *dir;
+    struct dirent *entry;
+    struct stat statbuf;
+
+    int flag;
+    char file_name[FILENAME_MAX];
+    char file_path[FILENAME_MAX];
+
+    int len = strnlen_s(dir_path, MAX_LEN);
+    if (len >= FILENAME_MAX - 1) {
+        log_error("Filename too long: %s", dir_path);
+        return -1;
+    }
+
+    strcpy(file_path, dir_path);
+    file_path[len++] = '/';
+
+    if(!(dir = opendir(dir_path))) {
+        log_error("Cannot open directory: %s", dir_path);
+        return -1;
+    }
+
+    while((entry = readdir(dir))) {
+
+        strcpy_s(file_path + len, FILENAME_MAX - len, entry->d_name);
+        if (lstat(file_path, &statbuf) == -1) {
+            log_warn("Cannot stat: %s", file_path);
+            continue;
+        }
+
+        if(S_ISDIR(statbuf.st_mode)) {
+            // Found a directory, but ignore . and ..
+            if(!strcmp(".", entry->d_name) || !strcmp("..", entry->d_name))
+                continue;
+
+            // Recurse at a new directory level
+            walkDirRecurse(file_path, include, exclude, reginc, regexc, fd, spec);
+
+            if (!(spec & WS_DIRS))
+                continue;
+        }
+        else if (S_ISREG(statbuf.st_mode) && !(spec & WS_FILES))
+            continue;
+        else if (S_ISLNK(statbuf.st_mode) && !(spec & WS_LINK))
+            continue;
+
+        if ((spec & WS_FILES) && (spec & WS_LINK)) {
+            strcpy_s(file_name, sizeof(file_name), entry->d_name);
+        }
+        else {
+            strcpy_s(file_name, sizeof(file_name), file_path + strnlen_s(fs_mount_path, sizeof(fs_mount_path)));
+        }
+
+        flag = include? !regexec(reginc, file_name, 0, 0, 0): 1;
+        if (flag) {
+            flag = exclude? regexec(regexc, file_name, 0, 0, 0): 1;
+            if (flag) {
+                log_debug("Found Match : %s", file_name);
+				fprintf(fd, "%s\n", file_name);
+            }
+        }
+    }
+    closedir(dir);
+
+    return 0;
+}
+
+FILE *getMatchingEntries(char *line, FILE *fd, int spec) {
+
+	FILE *file;
+	regex_t reg;
+	int retVal = -1;
 	char *last_oblique_ptr = NULL;
-	char Cmd_Str[MAX_CMD_LEN] = {'\0'};
-	char bPath[256] = {'\0'};
-    char mPath[256] = {'\0'};
-	char sPath[256] = {'\0'};
+	char bPath[NODE_LEN] = {'\0'};
+	char sPath[NODE_LEN] = {'\0'};
 
 	strcpy_s(sPath,sizeof(sPath),fs_mount_path);
     strcat_s(sPath,sizeof(sPath),tokenizeString(line, ".*"));//path in the VM
 	
 	last_oblique_ptr = strrchr(sPath,'/');
-	strncpy_s(bPath, sizeof(bPath), sPath, strnlen_s(sPath, sizeof(sPath))-strnlen_s(last_oblique_ptr+1,sizeof(sPath)));
-	
-	strcpy_s(mPath,sizeof(mPath),fs_mount_path);
-    strcat_s(mPath,sizeof(mPath),line);//path in the VM
-	
-	//to remove mount path from the find command output and directory path and +1 is to remove the additional / after directory
-    slen = strnlen_s(fs_mount_path,sizeof(fs_mount_path));
-	snprintf(Cmd_Str, sizeof(Cmd_Str), "find \"%s\" -regex \"%s\" -type %c | sed -r 's/.{%d}//'", bPath, mPath, file_type, slen);
-	log_info("********mPath is ---------- %s and command is %s",mPath,Cmd_Str);
+	strncpy_s(bPath, sizeof(bPath), sPath, strnlen_s(sPath, sizeof(sPath))-strnlen_s(last_oblique_ptr,sizeof(sPath)));
 
-	fd = popen(Cmd_Str,"r");
+	if (regcomp(&reg, line, REG_EXTENDED | REG_NOSUB)) {
+		log_warn("Not a valid regex. Skipping measurement...");
+		return NULL;
+	}
+
+	file = fopen(temp_file, "w");
+	if (file == NULL) {
+		log_error("Can not open temp file: %s for writing matched entries", temp_file);
+		goto final;
+	}
+
+	retVal = walkDirRecurse(bPath, line, NULL, &reg, NULL, file, spec);
+	fclose(file);
+	if (retVal == 0) {
+		fd = fopen(temp_file, "r");
+		if (fd == NULL) {
+			log_error("Cannot open temp file: %s for reading matched entries", temp_file);
+			goto final;
+		}
+	}
+
+final:
+	regfree(&reg);
 	return fd;
 }
 
-void calculateDirHashUtil(char *dir_path, char *include, char *exclude, FILE *fq, char *hash_type) {
+int generateDirHash(char *output, char *dir_path, char *include, char *exclude, regex_t *reginc, regex_t *regexc) {
 
-	int slen = 0;
+	FILE *file;
+	int retVal = -1;
+
+	file = fopen(temp_file, "w");
+	if (file == NULL) {
+		log_error("Can not open temp file: %s for writing files list", temp_file);
+		return -1;
+	}
+
+	retVal = walkDirRecurse(dir_path, include, exclude, reginc, regexc, file, WS_FILES|WS_LINK);
+	fclose(file);
+	if (retVal == 0) {
+		file = fopen(temp_file, "rb");
+		if (file == NULL) {
+			log_error("Cannot open temp file: %s for reading files list", temp_file);
+			return -1;
+		}
+
+		generateFileHash(output, file);
+		fclose(file);
+	}
+	return retVal;
+}
+
+void calculateDirHashUtil(char *dir_path, char *include, char *exclude, regex_t *reginc, regex_t *regexc, FILE *fq) {
+
 	int retval = -1;
-	char Cmd_Str[MAX_CMD_LEN] = {'\0'};
-	char dir_name_buff[1024] = {'\0'};
+	char dir_name_buff[NODE_LEN] = {'\0'};
 	char output[MAX_HASH_LEN] = {'\0'};
-	FILE *dir_file;
 	
 	snprintf(dir_name_buff, sizeof(dir_name_buff), "%s%s", fs_mount_path, dir_path);
 	log_debug("dir path : %s", dir_name_buff);
@@ -292,25 +382,16 @@ void calculateDirHashUtil(char *dir_path, char *include, char *exclude, FILE *fq
 	if (retval == 0) {
 		log_info("Mounted dir path for dir %s is %s", dir_path, dir_name_buff);
 
-		//to remove mount path from the find command output and directory path and +1 is to remove the additional / after directory
-		slen = strnlen_s(dir_name_buff, sizeof(dir_name_buff)) + 1;
-		if(strcmp(include,"") != 0 && strcmp(exclude,"") != 0 )
-			snprintf(Cmd_Str, sizeof(Cmd_Str), "find \"%s\" -maxdepth 1 ! -type d | sed -r 's/.{%d}//' | grep -E  \"%s\" | grep -vE \"%s\" | LANG=C sort",dir_name_buff, slen, include, exclude);
-		else if(strcmp(include,"") != 0)
-			snprintf(Cmd_Str, sizeof(Cmd_Str), "find \"%s\" -maxdepth 1 ! -type d | sed -r 's/.{%d}//' | grep -E  \"%s\" | LANG=C sort",dir_name_buff, slen, include);
-		else if(strcmp(exclude,"") != 0)
-			snprintf(Cmd_Str, sizeof(Cmd_Str), "find \"%s\" -maxdepth 1 ! -type d | sed -r 's/.{%d}//' | grep -vE \"%s\" | LANG=C sort",dir_name_buff, slen, exclude);
-		else
-			snprintf(Cmd_Str, sizeof(Cmd_Str), "find \"%s\" -maxdepth 1 ! -type d | sed -r 's/.{%d}//' | LANG=C sort",dir_name_buff, slen);
-		log_info("********dir_name_buff is ---------- %s and command is %s", dir_name_buff, Cmd_Str);
-
-		dir_file = popen(Cmd_Str, "r");
-		if (dir_file != NULL) {
-			generateFileHash(output, dir_file, hash_type);
-			pclose(dir_file);
-		}
-		else {
-			log_warn("Unable to get result of command execution- %s", Cmd_Str);
+		/*How the process works: 
+		1. Open the dir pointed by dir_name_buff
+		2. Read the dir contents one by one recursively
+		3. Pass those to SHA function.(Output to char output passed to the function)
+		4. Return the Output string.
+		*/
+		retval = generateDirHash(output, dir_name_buff, strcmp(include, "")?include:NULL, strcmp(exclude, "")?exclude:NULL, reginc, regexc);
+		if (retval == -1) {
+			log_error("Failed to walk dir recursively: %s", dir_name_buff);
+			return;
 		}
 
 		fprintf(fq, "<Dir Exclude=\"%s\" Include=\"%s\" Path=\"%s\">", exclude, include, dir_path);
@@ -319,10 +400,10 @@ void calculateDirHashUtil(char *dir_path, char *include, char *exclude, FILE *fq
 	}
 }
 
-void calculateFileHashUtil(char *file_path, FILE *fq, char *hash_type) {
+void calculateFileHashUtil(char *file_path, FILE *fq) {
 
 	int retval = -1;
-	char file_name_buff[1024] = {'\0'};
+	char file_name_buff[NODE_LEN] = {'\0'};
 	char output[MAX_HASH_LEN] = {'\0'};
 	FILE *file;
 	
@@ -333,31 +414,31 @@ void calculateFileHashUtil(char *file_path, FILE *fq, char *hash_type) {
 		log_info("Mounted file path for file %s is %s",file_path,file_name_buff);
    
 	    /*How the process works: 
-        1. Open the file pointed by value
+        1. Open the file pointed by file_name_buff
         2. Read the file contents into char * buffer
         3. Pass those to SHA function.(Output to char output passed to the function)
         4. Return the Output string.
         */
 	    file = fopen(file_name_buff, "rb");
-		if (file) {
-			generateFileHash(output, file, hash_type);
-			fclose(file);
+		if (file == NULL) {
+			log_error("Cannot open file: %s",file_name_buff);
+			return;
 		}
-		else {
-			log_warn("File not found- %s",file_name_buff);
-		}
-		
+
+		generateFileHash(output, file);
+		fclose(file);
+
 		fprintf(fq,"<File Path=\"%s\">",file_path);
 		fprintf(fq,"%s</File>", output);
 		log_info("File : %s Hash Measured : %s",file_path,output);
     }
 }
 
-void calculateSymlinkHashUtil(char *sym_path, FILE *fq, char *hash_type) {
+void calculateSymlinkHashUtil(char *sym_path, FILE *fq) {
 
 	int retval = -1;
 	char hash_str[MAX_LEN] = {'\0'};
-	char file_name_buff[1024] = {'\0'};
+	char file_name_buff[NODE_LEN] = {'\0'};
 	char output[MAX_HASH_LEN] = {'\0'};
 	
 	snprintf(file_name_buff, sizeof(file_name_buff), "%s%s", fs_mount_path, sym_path);
@@ -373,7 +454,7 @@ void calculateSymlinkHashUtil(char *sym_path, FILE *fq, char *hash_type) {
         4. Return the Output string.
         */
 		snprintf(hash_str, MAX_LEN, "%s%s", sym_path, file_name_buff);
-		generateStrHash(output, hash_str, hash_type);
+		generateStrHash(output, hash_str);
 		
 		fprintf(fq,"<Symlink Path=\"%s\">",sym_path);
 		fprintf(fq,"%s</Symlink>", output);

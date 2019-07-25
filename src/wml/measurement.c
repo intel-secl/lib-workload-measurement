@@ -35,11 +35,10 @@ extern unsigned char cumulative_hash[MAX_HASH_LEN];
  * calculateSymlinkHash:
  * @line : path of the symlink
  * @fq : measurement_file pointer
- * @hash_type : hash algorithm
  *
  * Calculate hash of symlink
  */
-void calculateSymlinkHash(char *line, FILE *fq, char *hash_type) {
+void calculateSymlinkHash(char *line, FILE *fq) {
 
     size_t len = 32768;
 	char sym_path[NODE_LEN] = {'\0'};
@@ -56,12 +55,7 @@ void calculateSymlinkHash(char *line, FILE *fq, char *hash_type) {
 	}
 
 	if (strstr(line, "SearchType=")) {
-		if (!isValidRegex(sym_path)) {
-			log_warn("Not a valid regex. Skipping measurement...");
-			return;
-		}
-
-		fd = getMatchingEntries(sym_path, fd, 'l');
+		fd = getMatchingEntries(sym_path, fd, WS_LINK);
 		if (fd != NULL) {
 			while (fgets(line, len, fd) != NULL) {
 				log_debug("Entry Read : %s",line);
@@ -70,13 +64,13 @@ void calculateSymlinkHash(char *line, FILE *fq, char *hash_type) {
 					break;
 				}
 				strcpy_s(sym_path,NODE_LEN,tokenizeString(line, "\n"));
-				calculateSymlinkHashUtil(sym_path, fq, hash_type);
+				calculateSymlinkHashUtil(sym_path, fq);
 			}
 			fclose(fd);
 		}
 	}
 	else {
-		calculateSymlinkHashUtil(sym_path, fq, hash_type);
+		calculateSymlinkHashUtil(sym_path, fq);
 	}
 }
 
@@ -84,11 +78,10 @@ void calculateSymlinkHash(char *line, FILE *fq, char *hash_type) {
  * calculateFileHash:
  * @line : path of the file
  * @fq : measurement_file pointer
- * @hash_type : hash algorithm
  *
  * Calculate hash of file
  */
-void calculateFileHash(char *line, FILE *fq, char *hash_type) {
+void calculateFileHash(char *line, FILE *fq) {
 
     size_t len = 32768;
     char file_path[NODE_LEN] = {'\0'};
@@ -105,12 +98,7 @@ void calculateFileHash(char *line, FILE *fq, char *hash_type) {
 	}
 
 	if (strstr(line, "SearchType=")) {
-		if (!isValidRegex(file_path)) {
-			log_warn("Not a valid regex. Skipping measurement...");
-			return;
-		}
-
-		fd = getMatchingEntries(file_path, fd, 'f');
+		fd = getMatchingEntries(file_path, fd, WS_FILES);
 		if (fd != NULL) {
 			while (fgets(line, len, fd) != NULL) {
 				log_debug("Entry Read : %s",line);
@@ -119,13 +107,13 @@ void calculateFileHash(char *line, FILE *fq, char *hash_type) {
 					break;
 				}
 				strcpy_s(file_path,NODE_LEN,tokenizeString(line, "\n"));
-				calculateFileHashUtil(file_path, fq, hash_type);
+				calculateFileHashUtil(file_path, fq);
 			}
 			fclose(fd);
 		}
 	}
 	else {
-		calculateFileHashUtil(file_path, fq, hash_type);
+		calculateFileHashUtil(file_path, fq);
 	}
 }
 
@@ -133,11 +121,10 @@ void calculateFileHash(char *line, FILE *fq, char *hash_type) {
  * calculateDirHash:
  * @line : path of the dir
  * @fq : measurement_file pointer
- * @hash_type : hash algorithm
  *
  * Calculate hash of dir
  */
-void calculateDirHash(char *line, FILE *fq, char *hash_type) {
+void calculateDirHash(char *line, FILE *fq) {
 
     size_t len = 32768;
     int is_wildcard = 0;
@@ -145,6 +132,7 @@ void calculateDirHash(char *line, FILE *fq, char *hash_type) {
 	char filter_type[32] = {'\0'};
     char exclude[32] = { '\0'};
     char include[32] = {'\0'};
+    regex_t reginc, regexc;
     FILE *fd = NULL;
     
     if (getTagValue(line, "Path=")) {
@@ -174,7 +162,7 @@ void calculateDirHash(char *line, FILE *fq, char *hash_type) {
 				strcpy_s(include,sizeof(include),node_value);
 				log_info("Include type in regex_format : %s",node_value);
 			}
-			if (!isValidRegex(include)) {
+			if (regcomp(&reginc, include, REG_EXTENDED | REG_NOSUB)) {
 				log_warn("Not a valid regex. Skipping measurement...");
 				return;
 			}
@@ -190,7 +178,7 @@ void calculateDirHash(char *line, FILE *fq, char *hash_type) {
 				strcpy_s(exclude,sizeof(exclude),node_value);
 				log_info("Exclude type in regex_format : %s",node_value);
 			}
-			if (!isValidRegex(exclude)) {
+			if (regcomp(&regexc, exclude, REG_EXTENDED | REG_NOSUB)) {
 				log_warn("Not a valid regex. Skipping measurement...");
 				return;
 			}
@@ -198,12 +186,7 @@ void calculateDirHash(char *line, FILE *fq, char *hash_type) {
 	}
 
 	if (strstr(line, "SearchType=")) {
-		if (!isValidRegex(dir_path)) {
-			log_warn("Not a valid regex. Skipping measurement...");
-			return;
-		}
-
-		fd = getMatchingEntries(dir_path, fd, 'd');
+		fd = getMatchingEntries(dir_path, fd, WS_DIRS);
 		if (fd != NULL) {
 			while (fgets(line, len, fd) != NULL) {
 				log_debug("Line Read : %s", line);
@@ -212,14 +195,17 @@ void calculateDirHash(char *line, FILE *fq, char *hash_type) {
 					break;
 				}
 				strcpy_s(dir_path,NODE_LEN,tokenizeString(line, "\n"));
-				calculateDirHashUtil(dir_path, include, exclude, fq, hash_type);
+				calculateDirHashUtil(dir_path, include, exclude, &reginc, &regexc, fq);
 			}
 			fclose(fd);
 		}
 	}
 	else {
-		calculateDirHashUtil(dir_path, include, exclude, fq, hash_type);
+		calculateDirHashUtil(dir_path, include, exclude, &reginc, &regexc, fq);
 	}
+	
+    if (strcmp(include,"")) regfree(&reginc);
+    if (strcmp(exclude,"")) regfree(&regexc);
 }
 
 /*
@@ -318,17 +304,17 @@ int generateMeasurementLogs(FILE *fp, char *mountPath) {
 
 		//File Hashes
 		if(strstr(line,"<File Path=") != NULL && digest_check) {
-		    calculateFileHash(line, fq, hashType);
+		    calculateFileHash(line, fq);
 		}
 
 		//Symlink Hashes
 		if(strstr(line,"<Symlink Path=") != NULL && digest_check) {
-		    calculateSymlinkHash(line, fq, hashType);
+		    calculateSymlinkHash(line, fq);
 		}
 
 		//Directory Hashes
 		if(strstr(line,"<Dir ") != NULL && digest_check) {
-			calculateDirHash(line, fq, hashType);
+			calculateDirHash(line, fq);
 		}//Dir hash ends
 
 	}//While ends
@@ -400,5 +386,6 @@ final:
 	fclose(manifest_fp);
 	if (measurement_fp) fclose(measurement_fp);
 	remove(measurement_file);
+	remove(temp_file);
 	return measurement_xml;
 }
