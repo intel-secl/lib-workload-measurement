@@ -34,7 +34,6 @@ int str2enum (const char *str)
 
 FILE* configure_logger() {
 
-	int fd = -1;
 	FILE *fp = NULL;
 	int log_level = -1;
 	char *log_file = NULL;
@@ -47,15 +46,7 @@ FILE* configure_logger() {
 			return NULL;
 		}
 
-		fd = open(log_file, O_CREAT | O_WRONLY | O_APPEND, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-		if (fd == -1) {
-			printf("Unable to get file descriptor for log file\n");
-			free(log_file);
-			return NULL;
-		}
-
-		fp = fdopen(fd, "a");
-		//fp = fopen(log_file, "a");
+		fp = fopen(log_file, "a");
 		free(log_file);
 	}
 	else {

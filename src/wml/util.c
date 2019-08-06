@@ -26,14 +26,14 @@
 int getSymLinkValue(char *path) {
 	char symlinkpath[512];
     char sympathroot[512];
-    struct stat p_statbuf;
-    if (lstat(path, &p_statbuf) < 0) {  /* if error occured */
+    struct stat statbuf;
+    if (lstat(path, &statbuf) == -1) {  /* if error occured */
         log_error("Not a valid path - %s", path);
         return -1;
     }
 
     // Check if the file path is a symbolic link
-    if (S_ISLNK(p_statbuf.st_mode) ==1) {
+    if (S_ISLNK(statbuf.st_mode) == 1) {
         // If symbolic link doesn't exists read the path its pointing to
         int len = readlink(path, symlinkpath, sizeof(symlinkpath));
         if (len != -1) {
@@ -250,7 +250,7 @@ int walkDirRecurse(const char *dir_path, const char *include, const char *exclud
         return -1;
     }
 
-    strcpy(file_path, dir_path);
+    strcpy_s(file_path, FILENAME_MAX, dir_path);
     file_path[len++] = '/';
 
     if(!(dir = opendir(dir_path))) {
@@ -262,7 +262,7 @@ int walkDirRecurse(const char *dir_path, const char *include, const char *exclud
 
         strcpy_s(file_path + len, FILENAME_MAX - len, entry->d_name);
         if (lstat(file_path, &statbuf) == -1) {
-            log_warn("Cannot stat: %s", file_path);
+            log_warn("Not a valid path - %s", file_path);
             continue;
         }
 

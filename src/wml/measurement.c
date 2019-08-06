@@ -243,13 +243,6 @@ int generateMeasurementLogs(FILE *fp, char *mountPath) {
     
 	strcpy_s(fs_mount_path,sizeof(fs_mount_path),mountPath);
 
-	/*int fd = open(measurement_file, O_CREAT | O_EXCL | O_WRONLY);
-	if (fd == -1) {
-	        printf("Unable to get file descriptor for log file\n");
-	        return 0;
-	}*/
-
-	//fq = fdopen(fd, "w");
 	fq = fopen(measurement_file, "w");
 	if (fq == NULL) {
 		log_error("Can not open Measurement file: %s to write the measurements", measurement_file);
