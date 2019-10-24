@@ -20,7 +20,7 @@ WML_INCLUDE=../wml/
 
 # compiler flags:
 LDFLAGS  = -pie -z noexecstack -z relro -z now
-CFLAGS  = -fPIE -fPIC -fstack-protector-strong -O2 -D FORTIFY_SOURCE=2 $(DEBUG_CFLAGS)
+CFLAGS  = -fno-strict-overflow -fno-delete-null-pointer-checks -fwrapv -fPIE -fPIC -fstack-protector-strong -O2 -D FORTIFY_SOURCE=2 $(DEBUG_CFLAGS)
 
 LIBS  = -lwml
 

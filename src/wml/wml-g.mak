@@ -22,7 +22,7 @@ SAFESTRING_INCLUDE=$(SAFESTRING)/include/
 
 # compiler flags:
 LDFLAGS  = -z noexecstack -z relro -z now
-CFLAGS  = -fPIC -fstack-protector-strong -O2 -D FORTIFY_SOURCE=2 $(DEBUG_CFLAGS)
+CFLAGS  = -fno-strict-overflow -fno-delete-null-pointer-checks -fwrapv -fPIC -fstack-protector-strong -O2 -D FORTIFY_SOURCE=2 $(DEBUG_CFLAGS)
 
 #LIBS  = -lxml2 -lcrypto -lSafeStringRelease
 LIBS  = -lcrypto -lSafeStringRelease
